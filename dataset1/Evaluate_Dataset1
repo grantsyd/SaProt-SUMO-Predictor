@@ -1,0 +1,47 @@
+# -*- coding: utf-8 -*-
+"""
+Evaluate_Dataset1.py
+
+Utility script for summarizing Dataset1 10-fold cross-validation results.
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+import pandas as pd
+
+METRIC_COLUMNS = ["Acc", "Sn", "Sp", "MCC", "AUC"]
+
+
+def summarize_cv_results(fold_result_csv: str | Path) -> pd.DataFrame:
+    df = pd.read_csv(fold_result_csv)
+    missing = [c for c in METRIC_COLUMNS if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing metric columns: {missing}")
+    summary = df[METRIC_COLUMNS].agg(["mean", "std", "min", "max"]).T
+    summary = summary.reset_index().rename(columns={"index": "Metric"})
+    return summary
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--fold_csv", required=True)
+    parser.add_argument("--out", default=None)
+    args = parser.parse_args()
+
+    summary = summarize_cv_results(args.fold_csv)
+    print(summary)
+
+    if args.out:
+        out_path = Path(args.out)
+    else:
+        out_path = Path(args.fold_csv).with_name(Path(args.fold_csv).stem + "_summary_from_eval.csv")
+
+    summary.to_csv(out_path, index=False, encoding="utf-8-sig")
+    print(f"Saved: {out_path}")
+
+
+if __name__ == "__main__":
+    main()
