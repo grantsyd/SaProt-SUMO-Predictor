@@ -1,0 +1,44 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+
+# IDE files
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+
+# Environment
+.env
+.venv/
+venv/
+env/
+
+# Large intermediate files
+features/
+resampled_features/
+cv_results/
+results/
+checkpoints/
+cache/
+old_scripts/
+archive/
+
+# Do not upload local pretrained SaProt model folder
+SaProt/
+pretrained_models/
+
+# Keep final trained model folder
+!trained_model/
+!trained_model/README.md
+!trained_model/Model1.pkl
