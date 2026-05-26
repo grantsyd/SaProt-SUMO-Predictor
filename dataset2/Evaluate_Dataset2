@@ -1,0 +1,77 @@
+# -*- coding: utf-8 -*-
+"""
+Evaluate_Dataset2.py
+
+Evaluate the saved Dataset2 SoftVoting model on the independent test set.
+"""
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+import joblib
+import numpy as np
+import pandas as pd
+from sklearn.metrics import accuracy_score, matthews_corrcoef, roc_auc_score, confusion_matrix
+
+
+def calc_metrics(y_true, prob, threshold=0.5):
+    pred = (prob >= threshold).astype(int)
+    tn, fp, fn, tp = confusion_matrix(y_true, pred, labels=[0, 1]).ravel()
+    sn = tp / (tp + fn) if (tp + fn) else 0.0
+    sp = tn / (tn + fp) if (tn + fp) else 0.0
+    return {
+        "Acc": accuracy_score(y_true, pred),
+        "Sn": sn,
+        "Sp": sp,
+        "MCC": matthews_corrcoef(y_true, pred),
+        "AUC": roc_auc_score(y_true, prob),
+        "TP": int(tp), "TN": int(tn), "FP": int(fp), "FN": int(fn),
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", default="Data/dataset2.npy")
+    parser.add_argument("--feature", default="features/dataset2_saprot_center_mean_AE384.npy")
+    parser.add_argument("--test_idx", default="splits/ae_family_nearmiss5178/dataset2_nearmiss_saprot_center_mean_AE384_neg5178_seed42_test_idx.npy")
+    parser.add_argument("--model", default="models/Model1.pkl")
+    parser.add_argument("--out", default="results/dataset2_independent_test_evaluation.csv")
+    args = parser.parse_args()
+
+    data = np.load(args.dataset, allow_pickle=True).item()
+    y_all = np.asarray(data["labels"], dtype=np.int64)
+    X_all = np.load(args.feature).astype(np.float32)
+    test_idx = np.load(args.test_idx).astype(np.int64)
+
+    X_test = X_all[test_idx]
+    y_test = y_all[test_idx]
+
+    model_pack = joblib.load(args.model)
+    et = model_pack["et"]
+    xgb = model_pack["xgb"]
+    lgbm = model_pack["lgbm"]
+    weights = model_pack["weights"]
+    threshold = model_pack.get("threshold", 0.5)
+
+    prob_et = et.predict_proba(X_test)[:, 1]
+    prob_xgb = xgb.predict_proba(X_test)[:, 1]
+    prob_lgbm = lgbm.predict_proba(X_test)[:, 1]
+
+    w_et, w_xgb, w_lgbm = weights["et"], weights["xgb"], weights["lgbm"]
+    prob_final = (prob_et * w_et + prob_xgb * w_xgb + prob_lgbm * w_lgbm) / (w_et + w_xgb + w_lgbm)
+
+    metrics = calc_metrics(y_test, prob_final, threshold=threshold)
+    metrics.update({"threshold": threshold, "w_et": w_et, "w_xgb": w_xgb, "w_lgbm": w_lgbm})
+
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame([metrics]).to_csv(out_path, index=False, encoding="utf-8-sig")
+
+    print(pd.DataFrame([metrics]))
+    print(f"Saved: {out_path}")
+
+
+if __name__ == "__main__":
+    main()
